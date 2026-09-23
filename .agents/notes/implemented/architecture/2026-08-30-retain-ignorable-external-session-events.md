@@ -14,7 +14,9 @@ That producer inventory did not cover a third-party plugin that currently depend
 
 The canonical `SessionEvent` envelope retains `ignorable?: true`, and every representation preserves it: seed validation, JSONL, API transport, generated catalogs, and test fixtures. The persistence seam's stored-event validation (`validateStoredEvents`) continues to refuse an unknown event unless its stored envelope explicitly carries `ignorable: true`; absent remains required-on-read.
 
-The field is removable only after a replacement supports the current third-party plugin across event production, persistence, reload, and transport, with an explicit cutover for sessions already containing the marker. The [session log versioning decision](2026-08-10-session-log-version-mechanism.md) continues to own the default-required safety rule and format-version policy.
+`Session.append` is the writer side of the same mechanism. A non-surface event accepts [`NonSurfaceAppendOptions`](../../../../packages/core/session/src/index.ts), whose `ignorable: true` marks a record this build's vocabulary does not declare; surface events keep their `SurfaceIntent` parameter and cannot carry the marker. The append refuses the marker on a type `KNOWN_SESSION_EVENT_TYPES` already names, because a known type's omission safety is a vocabulary decision the read path enforces rather than something a caller may assert; without that guard the mistake would surface only at the next reload, as a session the reader refuses.
+
+The field is removable only after a replacement supports the current third-party plugin across event production, persistence, reload, and transport, with an explicit cutover for sessions already containing the marker. Event production now has that replacement. The [session log versioning decision](2026-08-10-session-log-version-mechanism.md) continues to own the default-required safety rule and format-version policy.
 
 Historical format migration is deliberately stricter in the alpha implementation. The v0-to-v1 edge refuses every unknown v0 type, including an ignorable one, because an opaque payload may contain references that a format edge cannot validate. The [alpha historical-event decision](2026-08-31-alpha-historical-unknown-event-refusal.md) owns that bounded exception; equal-version append and reload continue to follow this note.
 
@@ -28,6 +30,8 @@ Historical format migration is deliberately stricter in the alpha implementation
 
 **Register mounted plugin event names as known.** Not adopted as the removal mechanism because event-name registration alone does not classify whether absence is safe, and acceptance would depend on the reader's current composition rather than the stored record.
 
+**Let a writer mark any event ignorable, including a known one.** Rejected because the read path refuses a known type that carries the marker, so the append would produce a session that loads in the writing process and fails on reload. The guard reports that at the append site instead.
+
 ## Consequences
 
-Third-party informational events can remain reloadable when their stored records carry the explicit marker, while unknown required events still fail loudly. The field remains part of the public event envelope, JSONL representation, transport types, generated references, and their tests until a replacement satisfies the cutover condition.
+Third-party informational events can remain reloadable when their stored records carry the explicit marker, while unknown required events still fail loudly. The field remains part of the public event envelope, JSONL representation, transport types, generated references, and their tests until a replacement satisfies the cutover condition. Event production is no longer the missing half: an out-of-repo plugin marks its own non-surface record through `Session.append` and never writes an envelope itself.
