@@ -706,6 +706,41 @@
   );
 }
 
+/* Plugin-contributed rows carry one of the closed tones, so the ledger owns the
+   palette and a plugin names emphasis rather than colour. */
+.extensionNeutral {
+  color: var(--dsw-alias-label-secondary);
+  background: var(--dsw-alias-bg-module-platform);
+}
+
+.extensionPositive {
+  color: var(--dsw-alias-state-success-primary);
+  background: var(--dsw-alias-state-success-tertiary);
+}
+
+.extensionAccent {
+  color: var(--dsw-alias-brand-primary-new-colorprimary-new-color);
+  background: color-mix(
+    in srgb,
+    var(--dsw-alias-brand-primary-new-colorprimary-new-color) 14%,
+    var(--dsw-alias-bg-layer-1)
+  );
+}
+
+.extensionWarning {
+  color: var(--dsw-alias-state-warn-label);
+  background: var(--dsw-alias-state-warn-tertiary);
+}
+
+.extensionCritical {
+  color: var(--dsw-alias-state-error-primary);
+  background: color-mix(
+    in srgb,
+    var(--dsw-alias-state-error-primary) 14%,
+    var(--dsw-alias-bg-layer-1)
+  );
+}
+
 .contentText {
   display: block;
   min-width: 0;

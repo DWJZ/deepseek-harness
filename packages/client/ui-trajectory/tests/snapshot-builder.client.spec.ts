@@ -298,4 +298,35 @@ describe('TrajectorySnapshotBuilder', () => {
     expect(builder.apply({ upserts: [middle] }).requests.map(request => request.startSeq))
       .toEqual([1, 3, 5])
   })
+
+  it('keeps a plugin-contributed extension row as an event node at its own log position', () => {
+    const extension = contribution('trajectory-allow-decision', 5, {
+      kind: 'node',
+      node: {
+        kind: 'extension',
+        seq: 5,
+        time: 1_700_000_000_000,
+        key: 'dsh-allow/decision',
+        text: '规则放行 · ls',
+        value: { origin: 'rule', command: 'ls' },
+      },
+    })
+    const later = contribution('assistant:3', 9, {
+      kind: 'assistant', partial: null, request: assistantRequest(9, 3),
+    })
+
+    const snapshot = new TrajectorySnapshotBuilder().replace({ nodes: [later, extension] })
+
+    expect(snapshot.eventNodes.map(node => node.kind)).toEqual(['extension'])
+    expect(snapshot.eventNodes[0]).toMatchObject({
+      kind: 'extension',
+      seq: 5,
+      key: 'dsh-allow/decision',
+      text: '规则放行 · ls',
+      value: { origin: 'rule', command: 'ls' },
+    })
+    // The row keeps the Location its Definition resolved, so it stays inside the
+    // Step that answered the call rather than falling back to the session.
+    expect(snapshot.eventLocations.get(5)).toEqual({ kind: 'session' })
+  })
 })
