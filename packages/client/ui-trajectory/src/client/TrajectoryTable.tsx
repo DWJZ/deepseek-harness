@@ -30,6 +30,7 @@ import type {
 import type {
   AssistantMetricDetail, TrajectoryCellKind, TrajectoryCellProps, TrajectorySourceBlock,
 } from './trajectory-record.ts'
+import type { ExtensionTone } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { formatElapsedSeconds, trajectoryRecordId } from './trajectory-record.ts'
 import {
   groupTrajectoryVirtualRows, trajectoryVirtualRecordKey,
@@ -57,6 +58,7 @@ const KIND_LABEL_KEY: Record<TrajectoryCellKind, TrajectoryKey> = {
   message: 'kind.assistant',
   tool: 'kind.tool',
   subtool: 'kind.subtool',
+  extension: 'kind.extension',
 }
 
 function ToolWrenchIcon(): ReactNode {
@@ -128,6 +130,16 @@ const KIND_ICON: Record<TrajectoryCellKind, ReactNode> = {
   message: <IconSparkleRegular size={13} />,
   tool: <ToolWrenchIcon />,
   subtool: <ToolWrenchIcon />,
+  extension: <InformationIcon />,
+}
+
+/** Emphasis class one plugin-contributed row renders its kind tag with. */
+const EXTENSION_TONE_CLASS: Record<ExtensionTone, string | undefined> = {
+  neutral: css.extensionNeutral,
+  positive: css.extensionPositive,
+  accent: css.extensionAccent,
+  warning: css.extensionWarning,
+  critical: css.extensionCritical,
 }
 
 interface TableRecord {
@@ -2853,7 +2865,9 @@ export function TrajectoryTable({
                                             ? css.assistantVioletBright
                                             : record.cell.kind === 'subtool'
                                               ? css.subtoolAmber
-                                              : css[record.cell.kind]
+                                              : record.cell.kind === 'extension'
+                                                ? EXTENSION_TONE_CLASS[record.cell.extension?.tone ?? 'neutral']
+                                                : css[record.cell.kind]
                                 }`}
                                 data-role-kind={record.cell.kind}
                               >

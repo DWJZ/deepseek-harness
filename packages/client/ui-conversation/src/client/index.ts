@@ -30,6 +30,7 @@ export type {
 export type {
   AssistantBlock, AssistantMessageNode, AssistantProviderMetadataView, AssistantRequestConfig,
   AssistantTiming, CommandNode, CompactionSummaryNode, ContextMessageNode, ConversationNode,
+  ExtensionNode, ExtensionTone,
   ModelRetryNode, PartialAssistant, PreparingToolCall, RunningToolCall, StartedToolCall, SteeringMessageNode, TodoItem,
   ToolCallBlock, ToolResultNode, TurnErrorNode, TurnMaxTokensNode, UnknownSurfaceNode,
   UserMessageNode,

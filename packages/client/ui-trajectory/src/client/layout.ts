@@ -111,6 +111,16 @@ function layoutEntryOrder(entry: OrderedLayoutEntry): number {
     : entry.seq
 }
 
+/**
+ * Pretty JSON for one plugin-owned payload.
+ * @param value - plugin-owned value carried by an EXTENSION record.
+ * @returns the rendered JSON, or undefined when the value has no representation.
+ */
+function extensionDetail(value: unknown): string | undefined {
+  const serialized = JSON.stringify(value, null, 2)
+  return serialized === undefined ? undefined : serialized
+}
+
 function inputCellDetail(node: InputNode, t: TrajectoryTranslate): Pick<
   TrajectoryCellProps,
   | 'text'
@@ -460,6 +470,34 @@ export function deriveTrajectoryLayout(
         },
       })
       prevAbsTime = finiteTime(node.time) ?? prevAbsTime
+      continue
+    }
+    if (node.kind === 'extension') {
+      // A plugin-owned record row. Its Definition supplied the one-line summary,
+      // the emphasis, and the details payload, so this target renders them
+      // without reading any plugin's field names; the payload rides the shared
+      // detail panel's payload tab as pretty JSON.
+      const turn = enclosingUserTurn(followingAssistants[i], partial, lastAssistantTurn)
+      const absTime = finiteTime(node.time)
+      const detail = extensionDetail(node.value)
+      pushMessage(turn, {
+        absTime,
+        cell: {
+          index: ++index,
+          kind: 'extension',
+          text: node.text,
+          recordId: `extension\u0000${String(node.seq)}`,
+          sourceSeq: node.seq,
+          extension: {
+            key: node.key,
+            value: node.value,
+            ...(node.tone === undefined ? {} : { tone: node.tone }),
+          },
+          ...(detail === undefined ? {} : { inputDetail: detail }),
+          timeSeconds: null,
+        },
+      })
+      prevAbsTime = absTime ?? prevAbsTime
       continue
     }
     if (node.kind === 'compaction') {

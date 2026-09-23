@@ -162,6 +162,12 @@ Step and Turn closure are external Location facts and do not mutate business Sta
 
 IDs are never reused. Completed Contexts remain in the current window, providing stable render identity and possible predecessor evidence for later Readers.
 
+### Target-owned extension rows
+
+An installed plugin adds ledger rows without teaching this package its vocabulary. It registers an ordinary Definition whose Node is an `extension` record: a one-line summary, a plugin-owned key and JSON payload, and one tone from the closed `ExtensionTone` set. The Trajectory target renders the summary in a labelled row, colours that row's kind tag from the tone, and shows the payload through the shared details payload tab, so neither a plugin's field names nor its colours reach this package. A target that does not recognize the Node's kind contributes no row there.
+
+The tone set stays closed for the same reason a Definition's `kind` is a shared namespace: this package owns the palette and a plugin names the emphasis it wants. Colour separates origins and cannot separate two outcomes of one origin, which is why a summary carries its own leading symbol.
+
 ### Location is a first-class engine fact
 
 [`ConversationLocationIndex`](../../../../packages/client/ui-conversation/src/client/conversation/location-index.ts) maps standard events and packed runs to Locations from `turn/start`, `step/start`, explicit turn and step payloads, `step/end`, and `turn/end`. All members of a row share its turn, step, block index, and delta kind, so the row needs one Location entry at its first `seq`.
@@ -362,7 +368,7 @@ SessionEventLike window
 
 Runtime tests pin Definition lifecycle registration, exact-ID append, update-before-start collection followed by forward replay after start, prepend identity, Reader window-gap repair, transitive dependencies, Location closure, Step→Turn data phase order, Location data replacement, publication cadence, illegal withdrawal, first-subscription activation, monotonic active targets, and per-target Builders.
 
-Conversation tests cover every built-in Chat Definition, Assistant Step data, Turn Tail and Deliverables Turn data, Chat ordering and structural sharing, selector isolation, Assistant and Tool running-to-settled identity, nested PTC dispatch, steering, Compaction, Retry, interruption, load-older anchoring, and slot dispatch. Trajectory tests cover its independently registered Message, Assistant, Tool, Compaction, Request-header, and boundary Definitions together with the preserved stage-oriented view model.
+Conversation tests cover every built-in Chat Definition, Assistant Step data, Turn Tail and Deliverables Turn data, Chat ordering and structural sharing, selector isolation, Assistant and Tool running-to-settled identity, nested PTC dispatch, steering, Compaction, Retry, interruption, load-older anchoring, and slot dispatch. Trajectory tests cover its independently registered Message, Assistant, Tool, Compaction, Request-header, and boundary Definitions together with the preserved stage-oriented view model. They also pin that a plugin-contributed `extension` row survives the snapshot builder as an event node at its own `anchorSeq`, collects into a cell whose payload reaches `inputDetail`, and keeps its tone for the renderer's palette.
 
 Slot type/runtime tests pin required parent-provided common inject, the `hookContext` type, Hook isolation across Node contexts, stable factory/Hook identity, and the absence of business-renderer rerenders for unrelated Session publications. Existing entry-owned Observable Hook tests continue to pin the path that does not use a contextual factory.
 

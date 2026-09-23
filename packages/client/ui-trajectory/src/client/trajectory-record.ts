@@ -2,7 +2,7 @@
 
 import type { HTMLAttributes } from 'react'
 import type { FileAttachmentRef, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
-import type { ConversationPromptSnapshot } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { ConversationPromptSnapshot, ExtensionTone } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { TrajectoryTranslate } from './locales.ts'
 
 /** Closed set of trajectory record kinds. */
@@ -14,6 +14,7 @@ export type TrajectoryCellKind =
   | 'message'
   | 'tool'
   | 'subtool'
+  | 'extension'
 
 /** Recorded inputs needed to derive assistant TTFT and decode throughput. */
 export interface AssistantMetricDetail {
@@ -34,6 +35,16 @@ export interface TrajectorySourceBlock {
   file?: FileAttachmentRef
   callId?: string
   toolName?: string
+}
+
+/** Plugin-owned payload carried by one EXTENSION record. */
+export interface ExtensionRowDetail {
+  /** Plugin-owned name for what this row records. */
+  readonly key: string
+  /** Plugin-owned JSON the details panel shows. */
+  readonly value: unknown
+  /** Emphasis this row's kind tag renders with; absence is neutral. */
+  readonly tone?: ExtensionTone
 }
 
 /** Data and optional presentation attributes for one trajectory record. */
@@ -86,6 +97,8 @@ export interface TrajectoryCellProps extends HTMLAttributes<HTMLDivElement> {
   toolName?: string
   /** Tool-only result failure state. */
   isError?: boolean
+  /** Plugin-owned payload of an EXTENSION record, for the details panel. */
+  extension?: ExtensionRowDetail
   /** Own duration in seconds, or `null` when no duration is known. */
   timeSeconds: number | null
   /** Unix epoch milliseconds when this operation actually started, when known. */

@@ -211,6 +211,37 @@ export interface UnknownSurfaceNode {
 }
 
 /**
+ * Visual weight one extension row asks the ledger to use for its kind tag.
+ * The set is closed, so this target owns the palette and a plugin names only the
+ * emphasis it wants rather than any styling of its own.
+ */
+export type ExtensionTone = 'neutral' | 'positive' | 'accent' | 'warning' | 'critical'
+
+/**
+ * One row an installed plugin contributes to the Trajectory ledger, built by
+ * its own `ConversationNodeDefinition` from a log-only event of its own.
+ *
+ * The ledger renders `text` in the row and shows `value` in the details panel,
+ * so the trajectory target stays free of any plugin's payload vocabulary. A
+ * target that does not render extension rows skips the node like any other
+ * unrecognized kind.
+ */
+export interface ExtensionNode {
+  kind: 'extension'
+  seq: number
+  /** Unix epoch ms from the source session event when known. */
+  time: number
+  /** Plugin-owned name for this row's subject, shown in the details panel. */
+  key: string
+  /** One-line summary the ledger renders in the row. */
+  text: string
+  /** Plugin-owned JSON the details panel shows. */
+  value: unknown
+  /** Emphasis for this row's kind tag; absence renders the neutral tone. */
+  tone?: ExtensionTone
+}
+
+/**
  * One slash-command lifecycle folded from the log-only `command/run` /
  * `command/done` pair (paired by commandId, mirroring tool call↔result).
  * Log-only events are not surface events, so the command Definition indexes
@@ -255,6 +286,7 @@ export type ConversationNode =
   | ToolResultNode
   | CommandNode
   | CompactionSummaryNode
+  | ExtensionNode
   | UnknownSurfaceNode
 
 /** Identity and placement shared by tool preparation and dispatch. */

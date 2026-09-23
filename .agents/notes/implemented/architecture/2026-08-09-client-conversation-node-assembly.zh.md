@@ -162,6 +162,12 @@ Step/Turn 关闭属于外部 Location 事实，不替业务修改 State。边界
 
 ID 不复用，完成的 Context 继续存在于当前窗口，既提供稳定渲染 identity，也可以作为后续 Reader 的前序证据。
 
+### 各目标自有的扩展行
+
+已安装的插件可以在不需要本包认识它词汇的前提下加入账本行。它注册一个普通 Definition，其 Node 是一条 `extension` 记录：一行摘要、插件自有的 key 与 JSON payload，以及取自封闭集合 `ExtensionTone` 的一个色调。Trajectory 目标把摘要渲染成带标签的行、用色调决定该行标签的颜色、并让 payload 走共用的详情负载页，因此插件的字段名和颜色都不会进入本包。目标不认识该 Node 类型时，该处不产出行。
+
+色调集合保持封闭,理由与 Definition 的 `kind` 是跨目标共享命名空间相同:配色由本包拥有,插件只表达它想要的强调程度。颜色分得开来源,却分不开同一来源的两种结局 —— 所以摘要自带一个前置符号。
+
 ### Location 是一级引擎事实
 
 [`ConversationLocationIndex`](../../../../packages/client/ui-conversation/src/client/conversation/location-index.ts) 根据 `turn/start`、`step/start`、显式 turn/step payload、`step/end` 和 `turn/end` 建立标准 event 与 packed run 到 Location 的映射。同一 row 的成员共享 turn、step、block index 与 delta kind，因此只需以首 `seq` 建立一条 Location entry。
@@ -362,7 +368,7 @@ SessionEventLike window
 
 Runtime tests 固定 Definition 生命周期注册、exact-ID append、update-before-start 收集与 start 后正序 replay、prepend identity、Reader window-gap 修复、传递依赖、Location closure、Step→Turn data phase order、Location data replacement、publication cadence、非法撤回、首次订阅 activation、单调 active target 和 per-target Builder。
 
-Conversation tests 覆盖全部内建 Chat Definition、Assistant Step data、Turn Tail 与 Deliverables Turn data、Chat 排序和结构共享、selector isolation、Assistant/Tool running-to-settled identity、nested PTC dispatch、steering、Compaction、Retry、interruption、load-older anchoring 和 slot dispatch。Trajectory tests 则覆盖它独立注册的 Message、Assistant、Tool、Compaction、Request-header 与 boundary Definition，以及继续保留的 stage-oriented view model。
+Conversation tests 覆盖全部内建 Chat Definition、Assistant Step data、Turn Tail 与 Deliverables Turn data、Chat 排序和结构共享、selector isolation、Assistant/Tool running-to-settled identity、nested PTC dispatch、steering、Compaction、Retry、interruption、load-older anchoring 和 slot dispatch。Trajectory tests 则覆盖它独立注册的 Message、Assistant、Tool、Compaction、Request-header 与 boundary Definition，以及继续保留的 stage-oriented view model。它们还固定：插件贡献的 `extension` 行会带着自己的 `anchorSeq` 作为 event node 穿过 snapshot builder、收进一个 payload 能到达 `inputDetail` 的单元格，并把它的色调留给渲染器的配色。
 
 Slot type/runtime tests 固定父注册必须提供声明的 common inject、`hookContext` 类型、不同 Node context 的 Hook 隔离、factory/Hook identity 稳定，以及无关 Session publication 不重渲染业务 renderer。原 entry-owned Observable Hook 测试继续固定未使用 contextual factory 的路径。
 

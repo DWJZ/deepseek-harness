@@ -136,6 +136,37 @@ describe('deriveTrajectoryLayout', () => {
     expect(tool?.timeSeconds).toBe(1.3)
   })
 
+  it('renders a plugin-contributed record from its own summary and payload', () => {
+    const nodes = [
+      { kind: 'user', seq: 1, time: 1_000, content: [{ type: 'text', text: 'run it' }], source: null },
+      {
+        kind: 'assistant', seq: 2, time: 2_000, turn: 1, step: 1,
+        blocks: [{ kind: 'tool-call', callId: 'c1', name: 'bash', argsRaw: '{"command":"rm -rf build"}' }],
+      },
+      {
+        kind: 'extension', seq: 3, time: 2_100,
+        key: 'dsh-allow/decision', text: 'rule · rm -rf build',
+        value: { origin: 'rule', command: 'rm -rf build' }, tone: 'positive',
+      },
+    ] as unknown as LegacyConversationSlice['nodes']
+    const turns = deriveTrajectoryLayout({ nodes, partial: null, runningCalls: [] })
+    const cells = turns.flatMap(turn => turn.groups.flatMap(group => group.cells))
+    const row = cells.find(cell => cell.kind === 'extension')
+    expect(row).toMatchObject({
+      kind: 'extension',
+      text: 'rule · rm -rf build',
+      sourceSeq: 3,
+      timeSeconds: null,
+      extension: {
+        key: 'dsh-allow/decision',
+        value: { origin: 'rule', command: 'rm -rf build' },
+        tone: 'positive',
+      },
+    })
+    // The payload rides the shared details tab, so a plugin row needs no renderer of its own.
+    expect(row?.inputDetail).toContain('"origin": "rule"')
+  })
+
   it('adds runningCalls not already present and leaves their time blank', () => {
     const turns = deriveTrajectoryLayout({
       nodes: [],
