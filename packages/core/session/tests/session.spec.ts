@@ -13,7 +13,7 @@ import SessionStore, {
   SessionSeq,
   snapshotSessionEvent,
 } from '@deepseek-ai/dsh-session'
-import type { CreateSessionOptions, SessionEventType, SessionHeader, SessionSurface } from '@deepseek-ai/dsh-session'
+import type { CreateSessionOptions, NonSurfaceAppendOptions, SessionEventType, SessionHeader, SessionSurface } from '@deepseek-ai/dsh-session'
 
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
@@ -1251,6 +1251,25 @@ describe('Session', () => {
       { ...base, ignorable: true } as SessionEvent,
     ])
     expect(marked.snapshotEvents()[0]?.ignorable).toBe(true)
+  })
+
+  it('lets a writer mark an out-of-vocabulary event ignorable, and refuses the marker on a known type', () => {
+    const session = Session.create(SessionId('ignorable-append'), [])
+    // An out-of-repo plugin's type is outside SessionEventMap by construction, so
+    // the spec reaches it through the same widened signature that plugin sees.
+    const appendExternal = session.append.bind(session) as (
+      type: string,
+      data: unknown,
+      opts?: NonSurfaceAppendOptions,
+    ) => SessionEvent
+    const appended = appendExternal('extension/probe', { retained: true }, { ignorable: true })
+    expect(appended.type).toBe('extension/probe')
+    expect(appended.ignorable).toBe(true)
+
+    // A type this build declares carries its omission safety in the generated
+    // table, so asserting it here must fail at the append site.
+    expect(() => session.append('turn/start', { turn: 1 }, { ignorable: true }))
+      .toThrow(/known vocabulary member/)
   })
 })
 

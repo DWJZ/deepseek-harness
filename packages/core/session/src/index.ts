@@ -33,7 +33,8 @@ export { interruptedTurnClosers, TOOL_NOT_STARTED, TOOL_OUTCOME_UNKNOWN } from '
 export type { SessionSurface, SurfaceFoldReplacement, SurfaceFoldResult, SessionMessageProjection, SessionMessageProjectionContext } from './surface.ts'
 export { deriveEventMessage, foldSurface, isAppendSurfaceEvent, isReplacementSurfaceEvent, isSurfaceEvent, isSurfaceEligibleType } from './surface.ts'
 export { canonicalHeader, foldRequestHeader, headerEquals } from './request-header.ts'
-export { KNOWN_SESSION_EVENT_TYPES } from './known-event-types.ts'
+import { KNOWN_SESSION_EVENT_TYPES } from './known-event-types.ts'
+export { KNOWN_SESSION_EVENT_TYPES }
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -436,6 +437,24 @@ interface SessionEntry {
 const attachments = new WeakMap<Session, SessionEntry>()
 
 /**
+ * Options for appending a non-surface event outside this build's vocabulary.
+ *
+ * An out-of-repo plugin owns event types this repository cannot declare, so a
+ * reader that meets one must be told whether skipping it is safe. This is the
+ * only writer-side way to set the envelope's marker; a type this build already
+ * knows is refused loudly, because its omission safety is a vocabulary decision
+ * the read path enforces rather than something a caller may assert.
+ */
+export interface NonSurfaceAppendOptions {
+  /**
+   * Marks an event a reader may safely skip when it does not recognize `type`.
+   * Set it only for a purely informational record whose loss cannot change how
+   * the rest of the log is interpreted.
+   */
+  readonly ignorable?: true
+}
+
+/**
  * An event-sourced session: an append-only log of {@link SessionEvent}s.
  *
  * Plain class (not a Service) — create live instances via
@@ -700,7 +719,10 @@ export class Session {
    *   history) and
    *   rejected by the compiler for non-surface types like `turn/start` or
    *   `assistant/attempt`. Assistant messages embed their exact provider
-   *   stream and cannot cite top-level source events.
+   *   stream and cannot cite top-level source events. For a non-surface type
+   *   the same parameter carries {@link NonSurfaceAppendOptions}, whose
+   *   `ignorable` marker is the compatibility mechanism for an event type this
+   *   build does not declare.
    * @returns the logged event — its assigned `seq`/`time` plus the SNAPSHOT of
    *   `data` that entered the log, so reading `event.data` back sees the logged
    *   value, never the caller's still-mutable input.
@@ -722,12 +744,21 @@ export class Session {
   append<T extends SessionEventType>(
     type: T,
     data: SessionEventMap[T],
-    ...opts: T extends SurfaceEventType ? [opts: SurfaceIntent<T>] : []
+    ...opts: T extends SurfaceEventType
+      ? [opts: SurfaceIntent<T>]
+      : [opts?: NonSurfaceAppendOptions]
   ): SessionEvent<T> {
-    const surfaceOpts: SurfaceIntent | undefined = opts[0]
+    const given = opts[0] as (SurfaceIntent & NonSurfaceAppendOptions) | undefined
     const surfaceMetadata = {
-      ...surfaceOpts?.sourceEventSeqs === undefined ? {} : { sourceEventSeqs: surfaceOpts.sourceEventSeqs },
-      ...surfaceOpts?.surfaceOp === undefined ? {} : { surfaceOp: surfaceOpts.surfaceOp },
+      ...given?.sourceEventSeqs === undefined ? {} : { sourceEventSeqs: given.sourceEventSeqs },
+      ...given?.surfaceOp === undefined ? {} : { surfaceOp: given.surfaceOp },
+    }
+    // A known vocabulary member carries its omission safety in the generated
+    // table, and the read path refuses the marker on one; refuse it here so the
+    // mistake surfaces at the append site rather than at the next reload.
+    const ignorable = given?.ignorable === true
+    if (ignorable && KNOWN_SESSION_EVENT_TYPES.has(type)) {
+      throw new Error(`session event "${type}" is a known vocabulary member and cannot be marked ignorable`)
     }
     const dataSnapshot = snapshotJsonValue(data)
     if (dataSnapshot === undefined) {
@@ -746,6 +777,7 @@ export class Session {
       seq: SessionSeq(this.log.length),
       time: Date.now(),
       data: dataSnapshot,
+      ...(ignorable ? { ignorable: true as const } : {}),
       ...(surfaceMetadataSnapshot as { surfaceOp?: unknown; sourceEventSeqs?: unknown }),
     } as unknown as SessionEvent<T>)
     validateSessionEventData(event, `session event "${type}" at seq ${event.seq}`)
