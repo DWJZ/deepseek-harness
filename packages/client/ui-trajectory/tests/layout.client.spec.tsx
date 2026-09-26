@@ -137,18 +137,20 @@ describe('deriveTrajectoryLayout', () => {
   })
 
   it('renders a plugin-contributed record from its own summary and payload', () => {
-    const nodes = [
-      { kind: 'user', seq: 1, time: 1_000, content: [{ type: 'text', text: 'run it' }], source: null },
+    // Built as real Nodes rather than through the file's legacy slice assertion,
+    // because the unknown-cast inventory is closed to new entries.
+    const nodes: ConversationNode[] = [
+      { kind: 'user', seq: 1, time: 1_000, content: [{ type: 'text', text: 'run it' }], source: { kind: 'user' } },
       {
         kind: 'assistant', seq: 2, time: 2_000, turn: 1, step: 1,
-        blocks: [{ kind: 'tool-call', callId: 'c1', name: 'bash', argsRaw: '{"command":"rm -rf build"}' }],
+        blocks: [{ kind: 'text', text: 'running it' }],
       },
       {
         kind: 'extension', seq: 3, time: 2_100,
         key: 'dsh-allow/decision', text: 'rule · rm -rf build',
         value: { origin: 'rule', command: 'rm -rf build' }, tone: 'positive',
       },
-    ] as unknown as LegacyConversationSlice['nodes']
+    ]
     const turns = deriveTrajectoryLayout({ nodes, partial: null, runningCalls: [] })
     const cells = turns.flatMap(turn => turn.groups.flatMap(group => group.cells))
     const row = cells.find(cell => cell.kind === 'extension')

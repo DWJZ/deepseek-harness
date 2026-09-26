@@ -772,14 +772,18 @@ export class Session {
     if (entry?.appending) {
       throw new Error('session append cannot reenter while another append is being published')
     }
-    const event = deepFreeze({
+    const base = {
       type,
       seq: SessionSeq(this.log.length),
       time: Date.now(),
       data: dataSnapshot,
-      ...(ignorable ? { ignorable: true as const } : {}),
       ...(surfaceMetadataSnapshot as { surfaceOp?: unknown; sourceEventSeqs?: unknown }),
-    } as unknown as SessionEvent<T>)
+    } as unknown as SessionEvent<T>
+    // The marker is merged outside the envelope literal above, so that recorded
+    // assertion keeps the exact syntax the unknown-cast inventory fingerprints.
+    const event: SessionEvent<T> = ignorable
+      ? deepFreeze(Object.assign({}, base, { ignorable: true as const }))
+      : deepFreeze(base)
     validateSessionEventData(event, `session event "${type}" at seq ${event.seq}`)
     this.surfaceManager.validateNext(event as SessionEvent)
 
