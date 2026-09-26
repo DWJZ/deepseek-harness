@@ -15,6 +15,23 @@ import { installDesktopQuitInspection } from './quit-inspection.ts'
 import { installPlatformSessionPublisher } from './platform-session.ts'
 import { installOfficeEngineResolution } from './office-engine.ts'
 
+/**
+ * Host HTTP port for the embedded web server.
+ *
+ * Two checkouts running side by side need distinct ports, so this is the one
+ * knob the other `DSH_DESKTOP_*` development variables do not already cover.
+ * @returns the configured port, or the single-instance default.
+ */
+function hostPort(): string {
+  const value = process.env.DSH_DESKTOP_HOST_PORT
+  if (value === undefined || value === '') return '19387'
+  const port = Number(value)
+  if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
+    throw new Error('desktop host: DSH_DESKTOP_HOST_PORT must be an integer from 1 through 65535')
+  }
+  return String(port)
+}
+
 async function main(): Promise<void> {
   const runtimeDir = process.argv[2] as string
   const projectDir = process.argv[3] as string
@@ -27,7 +44,7 @@ async function main(): Promise<void> {
     profile: 'desktop',
     resolvedProfile: { profile, installAnchor },
     patchFiles: [],
-    args: ['--no-open', '--port', '19387'],
+    args: ['--no-open', '--port', hostPort()],
     ...(process.argv[5] === undefined ? {} : {
       packageManager: {
         command: process.execPath,
