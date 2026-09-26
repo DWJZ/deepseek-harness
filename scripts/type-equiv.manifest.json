@@ -611,6 +611,11 @@
     },
     {
       "doc": "docs/subsystems/session.md",
+      "symbol": "NonSurfaceAppendOptions",
+      "source": "packages/core/session/src/index.ts"
+    },
+    {
+      "doc": "docs/subsystems/session.md",
       "symbol": "OptionalSessionSeq",
       "source": "packages/core/session/src/types.ts"
     },

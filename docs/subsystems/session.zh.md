@@ -449,6 +449,26 @@ interface SurfaceFoldResult {
 
 去除方法体的声明与源码中的普通类保持同步，覆盖其脱离态工厂、状态访问器、append 方法和历史投影。存储操作仍由生成的 [`ctx.sessions` 小节](#ctxsessions--sessionstore)记录。
 
+```ts type-equiv
+/**
+ * Options for appending a non-surface event outside this build's vocabulary.
+ *
+ * An out-of-repo plugin owns event types this repository cannot declare, so a
+ * reader that meets one must be told whether skipping it is safe. This is the
+ * only writer-side way to set the envelope's marker; a type this build already
+ * knows is refused loudly, because its omission safety is a vocabulary decision
+ * the read path enforces rather than something a caller may assert.
+ */
+interface NonSurfaceAppendOptions {
+  /**
+   * Marks an event a reader may safely skip when it does not recognize `type`.
+   * Set it only for a purely informational record whose loss cannot change how
+   * the rest of the log is interpreted.
+   */
+  readonly ignorable?: true
+}
+```
+
 ```ts public-api
 /**
  * An event-sourced session: an append-only log of {@link SessionEvent}s.
@@ -591,7 +611,10 @@ declare class Session {
    *   history) and
    *   rejected by the compiler for non-surface types like `turn/start` or
    *   `assistant/attempt`. Assistant messages embed their exact provider
-   *   stream and cannot cite top-level source events.
+   *   stream and cannot cite top-level source events. For a non-surface type
+   *   the same parameter carries {@link NonSurfaceAppendOptions}, whose
+   *   `ignorable` marker is the compatibility mechanism for an event type this
+   *   build does not declare.
    * @returns the logged event — its assigned `seq`/`time` plus the SNAPSHOT of
    *   `data` that entered the log, so reading `event.data` back sees the logged
    *   value, never the caller's still-mutable input.
@@ -613,7 +636,7 @@ declare class Session {
   append<T extends SessionEventType>(
     type: T,
     data: SessionEventMap[T],
-    ...opts: T extends SurfaceEventType ? [opts: SurfaceIntent<T>] : []
+    ...opts: T extends SurfaceEventType ? [opts: SurfaceIntent<T>] : [opts?: NonSurfaceAppendOptions]
     ): SessionEvent<T>;
   /**
    * The {@link EpochHeader} in force after the log's last header event — the
