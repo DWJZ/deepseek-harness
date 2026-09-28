@@ -2,14 +2,15 @@ name: Sync upstream master
 
 # Keeps this fork's `master` current with deepseek-ai/deepseek-harness.
 #
-# `master` carries a few local commits (the plugin-facing session-event write
-# side, the Trajectory extension row, and their docs), so this is a merge, not a
-# fast-forward. A clean merge pushes straight to `master`; a conflict aborts and
-# fails the run rather than leaving a half-merged branch behind.
+# The merge lives in ./sync-upstream.sh, which this job runs after installing the
+# workspace: a conflict inside a generated document is resolved by re-running
+# that document's generator over the merged tree and requiring its freshness
+# gate to accept the result. Every other conflict still fails the run rather than
+# leaving a half-merged branch behind.
 #
 # Scheduled workflows are disabled by default in a fork: enable Actions once in
 # this repository's Actions tab. Run it by hand from the Actions tab at any
-# time. For a machine-local equivalent, use ./sync-upstream.sh.
+# time. For the same merge from a local checkout, run ./sync-upstream.sh.
 
 on:
   schedule:
@@ -23,29 +24,30 @@ concurrency:
   group: sync-upstream
   cancel-in-progress: false
 
+env:
+  PRIMARY_NODE_VERSION: '24'
+
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: master
           fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.PRIMARY_NODE_VERSION }}
+          cache: pnpm
+      # The generators rebuild documents from source, so the workspace the merge
+      # resolves conflicts in has to be installed first.
+      - name: Install the workspace
+        run: pnpm install --frozen-lockfile
       - name: Merge upstream master
         run: |
           set -eu
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git remote add upstream https://github.com/deepseek-ai/deepseek-harness.git
-          git fetch --no-tags upstream master
-          if git merge-base --is-ancestor upstream/master HEAD; then
-            echo 'master already contains upstream/master'
-            exit 0
-          fi
-          if git merge --no-edit upstream/master; then
-            git push origin master
-            exit 0
-          fi
-          git merge --abort
-          echo '::error::upstream/master conflicts with the local commits on master; resolve it locally with ./sync-upstream.sh'
-          exit 1
+          ./sync-upstream.sh
