@@ -96,23 +96,35 @@ export function apply(ctx: Context, config: Config = {}): void {
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
     },
     async execute(args, exec) {
-      const result = await ctx.userQuestions.ask({
-        questions: args.questions.map(question => ({
-          id: question.id,
-          question: question.question,
-          ...question.header !== undefined ? { header: question.header } : {},
-          ...question.options !== undefined ? { options: question.options } : {},
-          ...question.multi_select !== undefined ? { multiSelect: question.multi_select } : {},
-        })),
-        ...exec.agent !== undefined ? { agent: exec.agent } : {},
-        signal: exec.signal,
-      })
-      return {
-        answers: result.answers.map(answer => ({
-          id: answer.id,
-          selected: [...answer.selected],
-          ...answer.custom !== undefined ? { custom: answer.custom } : {},
-        })),
+      // A question that has been answered no longer stands, so the asker withdraws it
+      // once it has an answer. Every other answerer releases on that abort: a Client
+      // card stops waiting for a click, instead of staying on screen until the
+      // Session ends because nobody told it the question was settled elsewhere.
+      const withdrawal = new AbortController()
+      const forwardAbort = (): void => { withdrawal.abort() }
+      exec.signal.addEventListener('abort', forwardAbort, { once: true })
+      try {
+        const result = await ctx.userQuestions.ask({
+          questions: args.questions.map(question => ({
+            id: question.id,
+            question: question.question,
+            ...question.header !== undefined ? { header: question.header } : {},
+            ...question.options !== undefined ? { options: question.options } : {},
+            ...question.multi_select !== undefined ? { multiSelect: question.multi_select } : {},
+          })),
+          ...exec.agent !== undefined ? { agent: exec.agent } : {},
+          signal: withdrawal.signal,
+        })
+        return {
+          answers: result.answers.map(answer => ({
+            id: answer.id,
+            selected: [...answer.selected],
+            ...answer.custom !== undefined ? { custom: answer.custom } : {},
+          })),
+        }
+      } finally {
+        exec.signal.removeEventListener('abort', forwardAbort)
+        withdrawal.abort()
       }
     },
   }))

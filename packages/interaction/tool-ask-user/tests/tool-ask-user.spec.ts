@@ -200,6 +200,58 @@ describe('ask_user_question tool', () => {
     expect(schema?.description).toContain('A submitted skipped question is an answer item with empty selected and no custom')
   })
 
+  it('withdraws the question once it has an answer', async () => {
+    const ctx = await setup({ mode: 'legacy' })
+    let observed: AskUserQuestionRequest | undefined
+    let abortedWhileAnswering: boolean | undefined
+    registerQuestionAnswerer(ctx, {
+      async ask(request) {
+        observed = request
+        abortedWhileAnswering = request.signal?.aborted
+        return { answers: [{ id: 'continue', selected: ['yes'] }] }
+      },
+    })
+
+    const result = await ctx.tools.execute({
+      signal: testToolSignal,
+      callId: ToolCallId('ask-withdraw'),
+      name: 'ask_user_question',
+      arguments: { questions: [{ id: 'continue', question: 'Continue?' }] },
+    })
+
+    expect(result).toMatchObject({ isError: false })
+    expect(abortedWhileAnswering).toBe(false)
+    // A Client card still waiting for a click learns that the question is settled from
+    // this abort; without it the card stays on screen for the rest of the Session.
+    expect(observed?.signal?.aborted).toBe(true)
+  })
+
+  it('forwards a tool abort to the question it is still waiting on', async () => {
+    const ctx = await setup({ mode: 'legacy' })
+    const controller = new AbortController()
+    let observed: AskUserQuestionRequest | undefined
+    const release = Promise.withResolvers<undefined>()
+    registerQuestionAnswerer(ctx, {
+      async ask(request) {
+        observed = request
+        await release.promise
+        return { answers: [{ id: 'continue', selected: ['yes'] }] }
+      },
+    })
+
+    const running = ctx.tools.execute({
+      signal: controller.signal,
+      callId: ToolCallId('ask-abort-forward'),
+      name: 'ask_user_question',
+      arguments: { questions: [{ id: 'continue', question: 'Continue?' }] },
+    })
+    await Promise.resolve()
+    controller.abort()
+    expect(observed?.signal?.aborted).toBe(true)
+    release.resolve(undefined)
+    await running
+  })
+
   it('lets Cordis select the exact legacy blocking tool instead of the timed tool', async () => {
     const ctx = await setup({ mode: 'legacy' })
     const seen: AskUserQuestionRequest[] = []
