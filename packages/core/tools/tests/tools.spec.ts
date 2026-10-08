@@ -838,7 +838,34 @@ describe('ToolRuntime', () => {
       expect(seen[0]).toMatchObject({
         agent, toolName: 'echo', callId: 'c1', reason: 'hook wants a human', displayReason: { en: 'Allow it?', zh: '允许吗？' },
       })
-      expect(seen[0]?.signal).toBe(controller.signal)
+      expect(seen[0]?.signal).not.toBe(controller.signal)
+      // The ask is withdrawn once it is answered, so a Client card waiting for a click
+      // learns the request is settled instead of waiting for the rest of the Session.
+      expect(seen[0]?.signal?.aborted).toBe(true)
+    })
+
+    it('forwards caller cancellation to the approval it is still waiting on', async () => {
+      const ctx = await approvalSetup()
+      const controller = new AbortController()
+      const entered = Promise.withResolvers<undefined>()
+      const release = Promise.withResolvers<ApprovalOutcome>()
+      let observed: ApprovalRequest | undefined
+      ctx.on('approval/request', (request) => {
+        observed = request
+        entered.resolve(undefined)
+        return release.promise
+      })
+      ctx.on('tools/pre-execute', async (_exec, _next): Promise<PreToolDecision> => ({ kind: 'ask' }))
+
+      const running = ctx.tools.execute({
+        signal: controller.signal, callId: ToolCallId('c2'), name: 'echo', arguments: {}, agent: fakeAgent(),
+      })
+      await entered.promise
+      expect(observed?.signal?.aborted).toBe(false)
+      controller.abort()
+      expect(observed?.signal?.aborted).toBe(true)
+      release.resolve('allowed-once')
+      await running
     })
 
     it('denies with the user-rejection reason on rejected', async () => {

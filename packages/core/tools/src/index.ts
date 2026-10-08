@@ -1741,13 +1741,22 @@ export class ToolRuntime extends Service {
         approvalCancelled: false,
       }
     }
+    // A decision settles the request, so the asker withdraws it once it has one.
+    // Every other answerer releases on that abort: a Client card stops waiting for a
+    // click instead of staying on screen because nobody told it the request was settled.
+    const withdrawal = new AbortController()
+    const forwardAbort = (): void => { withdrawal.abort() }
+    exec.signal.addEventListener('abort', forwardAbort, { once: true })
     const outcome = await approval.request({
       agent: exec.agent,
       toolName: exec.name,
       callId: exec.callId,
       ...ask.reason !== undefined ? { reason: ask.reason } : {},
       ...ask.displayReason !== undefined ? { displayReason: ask.displayReason } : {},
-      signal: exec.signal,
+      signal: withdrawal.signal,
+    }).finally(() => {
+      exec.signal.removeEventListener('abort', forwardAbort)
+      withdrawal.abort()
     })
     switch (outcome) {
       case 'allowed-once': return { decision: { kind: 'allow' }, approvalCancelled: false }
