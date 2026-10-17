@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Toast, Menu, IconEllipsisOutlineMedium, IconPaperPlaneOutlineMedium, IconSettingsOutlineMedium, IconUserOutlineMedium,
+  IconRefreshOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { AccountSectionInjected } from './AccountSection.tsx'
@@ -75,6 +76,11 @@ export function AccountMenu({
         { id: 'settings', label: t('settings'), icon: <IconSettingsOutlineMedium size={16} />,
           ...(settingsShortcut === undefined ? {} : { shortcut: settingsShortcut }) },
         { id: 'contact', label: t('contactUs'), icon: <IconPaperPlaneOutlineMedium size={16} /> },
+        // A restart provider (dsh-restart) marks the document when it loads; the row exists
+        // only then, and the provider owns what the request means.
+        ...(typeof document !== 'undefined' && document.documentElement.dataset.dshRestart === '1'
+          ? [{ id: 'restart', label: t('restartHost'), icon: <IconRefreshOutlineRegular size={16} />, disabled: busy }]
+          : []),
         ...(signedIn ? [{ id: 'signout', label: t('signOut'), icon: <LogoutIcon />, disabled: busy }]
           : [{ id: 'signin', label: t('signIn'), icon: <IconUserOutlineMedium size={16} /> }]),
       ]}
@@ -82,6 +88,7 @@ export function AccountMenu({
       onSelect={(id) => {
         if (id === 'settings') { setOpen(false); trigger.current?.focus(); openSettings() }
         else if (id === 'contact') { setOpen(false); contactUs() }
+        else if (id === 'restart') { setOpen(false); window.dispatchEvent(new CustomEvent('dsh-restart:request')) }
         else if (id === 'signin') beginSignIn()
         else void requestSignOut()
       }} />
