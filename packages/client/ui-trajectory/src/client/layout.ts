@@ -179,6 +179,7 @@ function inputCellDetail(node: InputNode, t: TrajectoryTranslate): Pick<
 
 /**
  * Fold a snapshot into turn → Message/Step groups with expanded cells.
+ * Inputs admitted to the same Step retain log order before its response.
  * @param input - nodes plus in-flight partial/runningCalls.
  * @param t - Trajectory locale translator.
  * @returns turns ordered by first appearance.
@@ -334,10 +335,7 @@ export function deriveTrajectoryLayout(
     }
     if (entry.kind === 'system') {
       const { change, request } = entry
-      const turn = change.kind === 'initial'
-        ? firstVisibleTurn(nodes, partial)
-        : enclosingPromptTurn(nodes, change.seq, partial)
-      pushMessage(turn, {
+      const laid: LaidCell = {
         absTime: finiteTime(change.time),
         cell: {
           index: ++index,
@@ -352,7 +350,15 @@ export function deriveTrajectoryLayout(
           timeSeconds: 0,
           startedAt: finiteTime(change.time),
         },
-      })
+      }
+      if (request !== undefined) {
+        pushStepInput(request.turn, request.step, [laid])
+      } else {
+        const turn = change.kind === 'initial'
+          ? firstVisibleTurn(nodes, partial)
+          : enclosingPromptTurn(nodes, change.seq, partial)
+        pushMessage(turn, laid)
+      }
       prevAbsTime = finiteTime(change.time) ?? prevAbsTime
       continue
     }
@@ -410,35 +416,21 @@ export function deriveTrajectoryLayout(
       continue
     }
     const { node, nodeIndex: i } = entry
-    if (node.kind === 'user') {
-      // user/message has no turn on the wire; enclose it in the next assistant
-      // (or partial) turn, else open the turn after the last assistant.
-      const turn = enclosingUserTurn(followingAssistants[i], partial, lastAssistantTurn)
-      pushMessage(turn, {
-        absTime: finiteTime(node.time),
-        cell: {
-          index: ++index,
-          kind: 'user',
-          ...inputCellDetail(node, t),
-          opensTurn: true,
-        },
-      })
-      prevAbsTime = finiteTime(node.time) ?? prevAbsTime
-      continue
-    }
-    if (node.kind === 'steering') {
-      const placement = steeringPlacement(
+    if (node.kind === 'user' || node.kind === 'steering' || node.kind === 'context') {
+      // Without request location, steering stays in the preceding turn; other inputs open the next.
+      const placement = inputPlacement(
         followingAssistants[i],
         partial,
-        lastAssistantTurn,
         eventLocations?.get(node.seq),
+        node.kind === 'steering' ? lastAssistantTurn ?? 1 : (lastAssistantTurn ?? 0) + 1,
       )
-      const laid = {
+      const laid: LaidCell = {
         absTime: finiteTime(node.time),
         cell: {
           index: ++index,
-          kind: 'user' as const,
+          kind: node.kind === 'context' ? 'context' : 'user',
           ...inputCellDetail(node, t),
+          ...(node.kind === 'user' ? { opensTurn: true } : {}),
         },
       }
       if (placement.step === undefined) pushMessage(placement.turn, laid)
@@ -459,28 +451,20 @@ export function deriveTrajectoryLayout(
       lastAssistantTurn = node.turn
       continue
     }
-    if (node.kind === 'context') {
-      const turn = enclosingUserTurn(followingAssistants[i], partial, lastAssistantTurn)
-      pushMessage(turn, {
-        absTime: finiteTime(node.time),
-        cell: {
-          index: ++index,
-          kind: 'context',
-          ...inputCellDetail(node, t),
-        },
-      })
-      prevAbsTime = finiteTime(node.time) ?? prevAbsTime
-      continue
-    }
     if (node.kind === 'extension') {
-      // A plugin-owned record row. Its Definition supplied the one-line summary,
-      // the emphasis, and the details payload, so this target renders them
-      // without reading any plugin's field names; the payload rides the shared
-      // detail panel's payload tab as pretty JSON.
-      const turn = enclosingUserTurn(followingAssistants[i], partial, lastAssistantTurn)
+      // A plugin-owned record row. Its Definition supplied the one-line summary, the
+      // emphasis, and the details payload, so this target renders them without reading
+      // any plugin's field names; the payload rides the shared detail panel's payload
+      // tab as pretty JSON.
+      const placement = inputPlacement(
+        followingAssistants[i],
+        partial,
+        eventLocations?.get(node.seq),
+        (lastAssistantTurn ?? 0) + 1,
+      )
       const absTime = finiteTime(node.time)
       const detail = extensionDetail(node.value)
-      pushMessage(turn, {
+      const laid: LaidCell = {
         absTime,
         cell: {
           index: ++index,
@@ -496,7 +480,9 @@ export function deriveTrajectoryLayout(
           ...(detail === undefined ? {} : { inputDetail: detail }),
           timeSeconds: null,
         },
-      })
+      }
+      if (placement.step === undefined) pushMessage(placement.turn, laid)
+      else pushStepInput(placement.turn, placement.step, [laid])
       prevAbsTime = absTime ?? prevAbsTime
       continue
     }
@@ -937,26 +923,11 @@ function stringifySourceValue(value: unknown): string {
   return json || String(value)
 }
 
-/**
- * Turn that encloses a user/message: next assistant turn, else the
- * in-flight partial, else the turn after the last finalized assistant (or 1).
- */
-function enclosingUserTurn(
+function inputPlacement(
   followingAssistant: AssistantMessageNode | undefined,
   partial: TrajectorySnapshot['partial'],
-  lastAssistantTurn: number | null,
-): number {
-  if (followingAssistant !== undefined) return followingAssistant.turn
-  if (partial !== null) return partial.turn
-  if (lastAssistantTurn !== null) return lastAssistantTurn + 1
-  return 1
-}
-
-function steeringPlacement(
-  followingAssistant: AssistantMessageNode | undefined,
-  partial: TrajectorySnapshot['partial'],
-  lastAssistantTurn: number | null,
   location: ConversationLocation | undefined,
+  fallbackTurn: number,
 ): { turn: number; step?: number } {
   if (location?.kind === 'step') {
     return { turn: location.turn.turn, step: location.step.step }
@@ -973,7 +944,7 @@ function steeringPlacement(
     return { turn: partial.turn, ...(partial.step > 0 ? { step: partial.step } : {}) }
   }
   if (locatedTurn !== undefined) return { turn: locatedTurn }
-  return { turn: lastAssistantTurn ?? 1 }
+  return { turn: fallbackTurn }
 }
 
 function indexFollowingAssistants(
