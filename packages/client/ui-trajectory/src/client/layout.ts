@@ -510,6 +510,7 @@ export function deriveTrajectoryLayout(
               : resultAsText(resultPreview)),
             ...(node.call !== null ? { inputDetail: node.call.argsRaw } : {}),
             outputDetail: detailResult(node, t),
+            resultSeq: node.seq,
             outputBlocks: node.content.map(block => sourceBlock(block)),
             ...resultPreview,
             callId: node.callId,
@@ -830,6 +831,7 @@ function expandAssistant(
         ...(result !== undefined
           ? {
             outputDetail: detailResult(result, t),
+            resultSeq: result.seq,
             outputBlocks: result.content.map(block => sourceBlock(block)),
             ...resultPreview,
             isError: result.isError,
@@ -1077,6 +1079,7 @@ function expandSubCalls(
         ...(settled
           ? {
             outputDetail: detailResult(sub, t),
+            resultSeq: sub.seq,
             outputBlocks: sub.content.map(block => sourceBlock(block)),
             ...resultPreview,
             isError: sub.isError,
